@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>방 번호 관리</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+
+        #settingsBtn {
+            background-color: #007BFF;
+            color: white;
+        }
+
+        #settingsPanel, #roomDetailPanel {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #fff;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #roomButtonsContainer {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .room-button {
+            width: 100px;
+            height: 60px;
+            margin: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            background-color: #ccc; /* 기본 회색 */
+        }
+
+        .room-button.checked-in {
+            background-color: red;
+        }
+
+        .room-button.checked-out {
+            background-color: green;
+        }
+
+        #roomDetailPanel button {
+            margin-top: 10px;
+        }
+
+        #roomDetailPanel textarea, #roomDetailPanel input {
+            width: 95%;
+            padding: 8px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>방 번호 관리 시스템</h1>
+    <button id="settingsBtn">설정</button>
+
+    <div id="settingsPanel" class="hidden">
+        <label for="roomCount">방 개수:</label>
+        <input type="number" id="roomCount" min="1" value="1">
+        <button id="createRoomsBtn">방 생성</button>
+        <div id="roomNumberInputContainer"></div>
+        <button id="saveSettingsBtn">설정 저장</button>
+    </div>
+
+    <div id="roomButtonsContainer"></div>
+    <div id="roomDetailPanel" class="hidden">
+        <h2 id="roomDetailTitle"></h2>
+        <p>상태: <span id="roomStatus"></span></p>
+        <button id="checkInBtn">체크인</button>
+        <button id="checkOutBtn">체크아웃</button>
+        <label for="memo">메모:</label>
+        <textarea id="memo"></textarea>
+        <label for="owner">소유자:</label>
+        <input type="text" id="owner">
+        <button id="saveRoomDetailsBtn">정보 저장</button>
+        <button id="closeDetailPanelBtn">닫기</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const settingsBtn = document.getElementById('settingsBtn');
+            const settingsPanel = document.getElementById('settingsPanel');
+            const roomCountInput = document.getElementById('roomCount');
+            const createRoomsBtn = document.getElementById('createRoomsBtn');
+            const roomNumberInputContainer = document.getElementById('roomNumberInputContainer');
+            const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+            const roomButtonsContainer = document.getElementById('roomButtonsContainer');
+            const roomDetailPanel = document.getElementById('roomDetailPanel');
+            const roomDetailTitle = document.getElementById('roomDetailTitle');
+            const roomStatusSpan = document.getElementById('roomStatus');
+            const checkInBtn = document.getElementById('checkInBtn');
+            const checkOutBtn = document.getElementById('checkOutBtn');
+            const memoInput = document.getElementById('memo');
+            const ownerInput = document.getElementById('owner');
+            const saveRoomDetailsBtn = document.getElementById('saveRoomDetailsBtn');
+            const closeDetailPanelBtn = document.getElementById('closeDetailPanelBtn');
+
+            let rooms = [];
+            let currentRoomId = null;
+
+            // 로컬 스토리지에서 데이터 불러오기
+            function loadRooms() {
+                const storedRooms = localStorage.getItem('rooms');
+                if (storedRooms) {
+                    rooms = JSON.parse(storedRooms);
+                    renderRoomButtons();
+                }
+            }
+
+            // 로컬 스토리지에 데이터 저장하기
+            function saveRooms() {
+                localStorage.setItem('rooms', JSON.stringify(rooms));
+            }
+
+            // 방 버튼 생성 및 렌더링
+            function renderRoomButtons() {
+                roomButtonsContainer.innerHTML = '';
+                rooms.forEach((room, index) => {
+                    const button = document.createElement('button');
+                    button.classList.add('room-button');
+                    button.textContent = room.number;
+                    button.dataset.index = index;
+
+                    if (room.status === 'checked-in') {
+                        button.classList.add('checked-in');
+                    } else if (room.status === 'checked-out') {
+                        button.classList.add('checked-out');
+                    }
+
+                    button.addEventListener('click', () => showRoomDetails(index));
+                    roomButtonsContainer.appendChild(button);
+                });
+            }
+
+            // 설정 패널 토글
+            settingsBtn.addEventListener('click', () => {
+                settingsPanel.classList.toggle('hidden');
+                if (!settingsPanel.classList.contains('hidden')) {
+                    roomButtonsContainer.classList.add('hidden');
+                } else {
+                    roomButtonsContainer.classList.remove('hidden');
+                }
+            });
+
+            // 방 개수만큼 입력란 생성
+            createRoomsBtn.addEventListener('click', () => {
+                const count = parseInt(roomCountInput.value, 10);
+                roomNumberInputContainer.innerHTML = '';
+                if (count > 0) {
+                    for (let i = 0; i < count; i++) {
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.placeholder = `${i + 1}번째 방 번호`;
+                        input.classList.add('room-number-input');
+                        roomNumberInputContainer.appendChild(input);
+                    }
+                }
+            });
+
+            // 설정 저장 (방 번호 저장)
+            saveSettingsBtn.addEventListener('click', () => {
+                const roomNumbers = Array.from(document.querySelectorAll('.room-number-input'))
+                    .map(input => input.value.trim())
+                    .filter(number => number !== '');
+                
+                rooms = roomNumbers.map(number => {
+                    return {
+                        number: number,
+                        status: 'vacant',
+                        memo: '',
+                        owner: ''
+                    };
+                });
+
+                saveRooms();
+                renderRoomButtons();
+                settingsPanel.classList.add('hidden');
+                roomButtonsContainer.classList.remove('hidden');
+            });
+
+            // 방 상세 정보 표시
+            function showRoomDetails(index) {
+                currentRoomId = index;
+                const room = rooms[index];
+                roomDetailTitle.textContent = `${room.number}번 방`;
+                roomStatusSpan.textContent = room.status;
+                memoInput.value = room.memo;
+                ownerInput.value = room.owner;
+                
+                roomDetailPanel.classList.remove('hidden');
+                roomButtonsContainer.classList.add('hidden');
+            }
+
+            // 체크인 상태로 변경 (선택된 방만)
+            checkInBtn.addEventListener('click', () => {
+                if (currentRoomId !== null) {
+                    rooms[currentRoomId].status = 'checked-in';
+                    roomStatusSpan.textContent = 'checked-in';
+                    saveRooms();
+                }
+            });
+
+           
+            checkOutBtn.addEventListener('click', () => {
+                if (currentRoomId !== null) {
+                    rooms[currentRoomId].status = 'checked-out';
+                    roomStatusSpan.textContent = 'checked-out';
+                    saveRooms();
+                }
+            });
+
+            
+            saveRoomDetailsBtn.addEventListener('click', () => {
+                if (currentRoomId !== null) {
+                    rooms[currentRoomId].memo = memoInput.value;
+                    rooms[currentRoomId].owner = ownerInput.value;
+                    saveRooms();
+                    closeDetailPanel();
+                }
+            });
+
+            
+            closeDetailPanelBtn.addEventListener('click', closeDetailPanel);
+
+            function closeDetailPanel() {
+                roomDetailPanel.classList.add('hidden');
+                roomButtonsContainer.classList.remove('hidden');
+                renderRoomButtons();
+            }
+
+            
+            loadRooms();
+        });
+    </script>
+</body>
+</html>
